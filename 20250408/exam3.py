@@ -7,7 +7,7 @@ from playwright.sync_api import sync_playwright
 station_id = input("請輸入車站代號：")
 
 # 檢查輸出目錄是否存在，若不存在則建立
-output_dir = 'C:\\Users\\Cosmos\\Desktop\\CYCU_oop_11022329\\20250408\P1'
+output_dir = 'C:\\Users\\Cosmos\\Desktop\\CYCU_oop_11022329\\20250408'#輸入自己的路徑
 os.makedirs(output_dir, exist_ok=True)
 
 # 下載輸入的 HTML 網址
@@ -48,10 +48,10 @@ def extract_bus_info_by_direction(file_path):
             # 確保所有欄位存在
             if arrival_info and stop_number and stop_name and stop_id and latitude and longitude:
                 bus_info = {
-                    "arrival_info": arrival_info.text.strip(),
-                    "stop_number": stop_number.text.strip(),
-                    "stop_name": stop_name.text.strip(),
-                    "stop_id": stop_id['value'],
+                    "公車到達時間": arrival_info.text.strip(),
+                    "車站序號": stop_number.text.strip(),
+                    "車站站名": stop_name.text.strip(),
+                    "車站編號": stop_id['value'],
                     "latitude": latitude['value'],
                     "longitude": longitude['value']
                 }
@@ -62,19 +62,19 @@ def extract_bus_info_by_direction(file_path):
 
     # 提取去程與回程的站點資訊
     go_bus_info_list = extract_stops_info(go_stops)
-    back_bus_info_list = extract_stops_info(back_stops)
+    
 
-    return go_bus_info_list, back_bus_info_list
+    return go_bus_info_list
 
 
 if __name__ == "__main__":
     file_path = os.path.join(output_dir, f"{station_id}.html")
-    go_output_csv_path = r'C:\\Users\\Cosmos\\Desktop\\CYCU_oop_11022329\\20250408\\go_bus_info.csv'
-    back_output_csv_path = r'C:\\Users\\Cosmos\\Desktop\\CYCU_oop_11022329\\20250408\\back_bus_info.csv'
+    go_output_csv_path = os.path.join(output_dir, 'go_bus_info.csv')
+    
 
 
     # 提取去程與回程的公車資訊
-    go_bus_info_list, back_bus_info_list = extract_bus_info_by_direction(file_path)
+    go_bus_info_list = extract_bus_info_by_direction(file_path)
 
     def save_to_csv(data_list, file_path):
     # 確保資料不為空
@@ -93,7 +93,6 @@ if __name__ == "__main__":
 
     # 儲存去程與回程的公車資訊到不同的 CSV 檔案
     save_to_csv(go_bus_info_list, go_output_csv_path)
-    save_to_csv(back_bus_info_list, back_output_csv_path)
+    
 
     print(f"去程公車資訊已儲存至 {go_output_csv_path}")
-    print(f"回程公車資訊已儲存至 {back_output_csv_path}")

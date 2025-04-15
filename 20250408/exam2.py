@@ -39,13 +39,24 @@ def calculate_julian_date(input_time_str):
 
     return weekday, julian_date, days_elapsed
 
+def day_of_year(input_time_str):
+    # 將輸入的時間字串轉換為 datetime 物件
+    input_time = datetime.strptime(input_time_str, "%Y-%m-%d %H:%M")
+    
+    # 計算該天是當年的第幾天
+    day_of_year_result = input_time.timetuple().tm_yday
+    
+    return day_of_year_result
+
+
 # 測試函數
 if __name__ == "__main__":
     input_time_str = input("請輸入時間 (格式為 YYYY-MM-DD HH:MM，例如 2020-04-15 20:30)：")
     try:
         weekday, julian_date, days_elapsed = calculate_julian_date(input_time_str)
         print(f"該天是星期：{weekday}")
-        print(f"輸入時間的太陽日 (Julian Date)：{julian_date:.6f}")
         print(f"該時刻至今經過的太陽日數：{days_elapsed:.6f}")
+        day_of_year_result = day_of_year(input_time_str)
+        print(f"該天是當年的第 {day_of_year_result} 天")
     except ValueError:
         print("輸入的時間格式不正確，請使用 YYYY-MM-DD HH:MM 格式！")

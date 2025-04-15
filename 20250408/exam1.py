@@ -1,25 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.special import erf  # 匯入 erf 函數
+from scipy.stats import lognorm #匯入CDF函數
 
-def plot_lognormal_cdf(num1, num2):
-    # 生成對數常態分布的 x 軸數據
-    x = np.linspace(0.01, 5, 1000)  # 避免 log(0)，x 從 0.01 開始
+def plot_normal_pdf(mu, sigma):
+    # 生成常態分布的 x 軸數據
+    x = np.linspace(mu - 4 * sigma, mu + 4 * sigma, 1000)
 
-    # 計算對數常態累積分布函數 (CDF)
-    cdf = 0.5 + 0.5 * erf((np.log(x) - num1) / (num2 * np.sqrt(2)))
+    # 計算常態機率密度函數 (PDF)
+    pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
 
     # 繪製圖表
     plt.figure(figsize=(8, 6))
-    plt.plot(x, cdf, label=f'μ={num1}, σ={num2}', color='blue')
-    plt.title("Lognormal cumulative distribution function")
+    plt.plot(x, pdf, label=f'μ={mu}, σ={sigma}', color='blue')
+    plt.title("Normal Probability Density Function (PDF)")
     plt.xlabel("x")
-    plt.ylabel("Cumulative distribution function (CDF)")
+    plt.ylabel("Probability Density Function (PDF)")
     plt.legend()
     plt.grid()
 
     # 儲存圖表為 JPG 檔案
-    output_filename = "lognormal_cdf.jpg"
+    output_filename = r"C:\\Users\\Cosmos\\Desktop\\CYCU_oop_11022329\\20250408\\normal_PDF.jpg"#改成自己的路徑
     plt.savefig(output_filename, format='jpg')
     print(f"圖表已儲存為 {output_filename}")
 
@@ -27,7 +27,7 @@ def plot_lognormal_cdf(num1, num2):
     plt.show()
 
 # 讀取兩個數字
-num1 = float(input("請輸入第一個數字 (均值 μ)："))
-num2 = float(input("請輸入第二個數字 (標準差 σ)："))
+num1 = float(input("請輸入第一個數字 (均值 mu)："))
+num2 = float(input("請輸入第二個數字 (標準差 simga)："))
 #執行函數
-plot_lognormal_cdf(num1, num2)
+plot_normal_pdf(num1, num2)
