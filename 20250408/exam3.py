@@ -2,27 +2,22 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from playwright.sync_api import sync_playwright
+import csv
+def bus_call(station_id:str ,output_dir:str):
+    # 下載輸入的 HTML 網址
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        station_url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={station_id}"
+        page.goto(station_url)
+        content = page.content()
+        file_path = os.path.join(output_dir, f"{station_id}.html")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        browser.close()
+        extract_bus_info_by_direction(file_path)
 
-# input 輸入車站代號
-station_id = input("請輸入車站代號：")
 
-# 檢查輸出目錄是否存在，若不存在則建立
-output_dir = 'C:\\Users\\Cosmos\\Desktop\\CYCU_oop_11022329\\20250408'#輸入自己的路徑
-os.makedirs(output_dir, exist_ok=True)
-
-# 下載輸入的 HTML 網址
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
-    station_url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={station_id}"
-    page.goto(station_url)
-    content = page.content()
-    file_path = os.path.join(output_dir, f"{station_id}.html")
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    browser.close()
-
-from bs4 import BeautifulSoup
 import csv
 
 def extract_bus_info_by_direction(file_path):
@@ -67,9 +62,17 @@ def extract_bus_info_by_direction(file_path):
     return go_bus_info_list
 
 
+
+output_dir = 'C:\\Users\\User\\Desktop\\CYCU_oop_11022329\\20250408'#輸入自己的路徑
+
+
 if __name__ == "__main__":
+    station_id = input("請輸入車站代號：")
     file_path = os.path.join(output_dir, f"{station_id}.html")
     go_output_csv_path = os.path.join(output_dir, 'go_bus_info.csv')
+    file_path = os.path.join(output_dir, f"{station_id}.html")
+    os.makedirs(output_dir, exist_ok=True)
+    bus_call(station_id, output_dir)
     
 
 

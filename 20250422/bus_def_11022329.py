@@ -18,6 +18,9 @@ def bus_call(bus_id:str):
         station_url=f"https://bus.pcrest.tw/Bus/Route/TPE/{bus_id}?X=121.49282723665239&Y=25.144383810172837&Z=18"
         page.goto(station_url)
         content = page.content()
+        #讀取所有<strong>標籤的資料
+        soup = BeautifulSoup(content, 'html.parser')
+        strong_tags = soup.find_all('strong')
         file_path = os.path.join(output_dir, f"{bus_id}.html")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(content)

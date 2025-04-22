@@ -1,4 +1,5 @@
 from datetime import datetime
+#https://ebus.gov.taipei/thb/StopsOfRoute?nameZh=1818%E8%87%BA%E5%8C%97%E2%86%92%E4%B8%AD%E5%A3%A2
 
 def calculate_julian_date(input_time_str):
     # 將輸入的時間字串轉換為 datetime 物件
