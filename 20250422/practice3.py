@@ -3,6 +3,8 @@ import subprocess
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.rc('font', family='Microsoft JhengHei')
 
 # 檔案路徑
 EXAM3_SCRIPT = "C:/Users/User/Desktop/CYCU_oop_11022329/20250422/exam3.py"
@@ -83,7 +85,7 @@ def match_stops(csv_data, geojson_data):
     print(f"Matched {len(matched_stops)} stops.")
     return matched_stops
 
-def generate_png(matched_stops, output_dir, geojson_file, selected_station, station_list, csv_data):
+def generate_png(matched_stops, output_dir, geojson_file, selected_station, csv_data):
     """
     將所有站點繪製成一個 PNG 圖檔，GeoJSON 中的站點用灰色標記，CSV 中的站點用紅色標記。
     """
@@ -96,7 +98,7 @@ def generate_png(matched_stops, output_dir, geojson_file, selected_station, stat
     plt.figure(figsize=(10, 10))
     geojson_data.plot(color='gray', markersize=1, label='GeoJSON Stops')
     plt.axis('equal')
-    plt.xlim(121.5, 121.6)
+    plt.xlim(121.45, 121.7)
     plt.ylim(24.95, 25.2)
     plt.legend()
     
@@ -143,6 +145,16 @@ def generate_png(matched_stops, output_dir, geojson_file, selected_station, stat
         if name in in_station_stops:
             offset_lng = 0.001  # 向右偏移量
             plt.imshow(img2, extent=(lng - 0.001+offset_lng, lng + 0.001+offset_lng, lat - 0.004, lat + 0.004), aspect='auto', zorder=10)
+
+    # 過濾"分鐘"的資料並顯示數字
+    df_minutes = csv_data[csv_data['公車到達時間'].str.contains('分鐘', na=False)]
+    for _, row in df_minutes.iterrows():
+        station_name = row['車站站名']
+        lng = row['longitude']
+        lat = row['latitude']
+        time = row['公車到達時間']
+        plt.text(lng - 0.001, lat, time, color='black', fontsize=4, ha='center', va='center', zorder=15)
+    
             
     
     # 儲存圖檔
@@ -167,7 +179,7 @@ def main():
     # 生成 PNG 圖檔
     station_list = List_station(csv_data)
     selected_station=select_station(csv_data, station_list)
-    generate_png(matched_stops, OUTPUT_DIR, GEOJSON_FILE, selected_station, station_list, csv_data)
+    generate_png(matched_stops, OUTPUT_DIR, GEOJSON_FILE, selected_station,  csv_data)
 
     
 
