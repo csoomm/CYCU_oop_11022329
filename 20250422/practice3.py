@@ -127,7 +127,7 @@ def generate_png(matched_stops, output_dir, geojson_file, selected_station, csv_
     offset_lng = 0.001  # 向右偏移量
     offset_lat = 0.011  # 向上偏移量
     plt.imshow(img1, extent=(selected_lng - 0.003 + offset_lng, selected_lng + 0.003 + offset_lng, 
-                             selected_lat - 0.015 + offset_lat, selected_lat + 0.015 + offset_lat), 
+                             selected_lat - 0.01 + offset_lat, selected_lat + 0.01 + offset_lat), 
                aspect='auto', zorder=20)
     
     plt.legend
@@ -144,7 +144,7 @@ def generate_png(matched_stops, output_dir, geojson_file, selected_station, csv_
         lng, lat = stop['coordinates']
         if name in in_station_stops:
             offset_lng = 0.001  # 向右偏移量
-            plt.imshow(img2, extent=(lng - 0.001+offset_lng, lng + 0.001+offset_lng, lat - 0.004, lat + 0.004), aspect='auto', zorder=10)
+            plt.imshow(img2, extent=(lng - 0.001+offset_lng, lng + 0.001+offset_lng, lat - 0.003, lat + 0.003), aspect='auto', zorder=10)
 
     # 過濾"分鐘"的資料並顯示數字
     df_minutes = csv_data[csv_data['公車到達時間'].str.contains('分鐘', na=False)]
