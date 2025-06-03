@@ -38,12 +38,12 @@ def search_bus_route(stop1, stop2):
             idx2 = stops.index(stop2)
             if idx1 < idx2:  # 起點在終點左邊
                 print(f"Route ID: {row['RouteID']}, Route Name: {row['RouteName']}, Direction: {row['Direction']}")
-                search_url(row['RouteID'], row['RouteName'], row['Direction'], stop1)
+                search_url(row['RouteID'], row['RouteName'], row['Direction'], stop1, stop2)
                 found = True
     if not found:
         print("查無同時包含兩站且順序正確的路線。")
 
-def search_url(route_id, route_name, direction, A):
+def search_url(route_id, route_name, direction, A, B):
     """
     根據 Route ID、Route Name、Direction 使用 Playwright 渲染後下載 HTML，並解析對應路線的站名及抵達時間
     """
@@ -79,9 +79,9 @@ def search_url(route_id, route_name, direction, A):
         finally:
             context.close()
             browser.close()
-        arrival_time(route_id, A, direction)
+        arrival_time(route_id, A, direction, B)
 
-def arrival_time(route_id, A, direction):
+def arrival_time(route_id, A, direction, B):
     """
     根據 route_id 和 direction 讀取 HTML 檔案，尋找站名 A 的抵達時間
     """
@@ -121,15 +121,104 @@ def arrival_time(route_id, A, direction):
             parent_div = stop.find_parent('span', class_='auto-list-stationlist')
             if parent_div:
                 arrival_time_element = parent_div.find('span', class_='auto-list-stationlist-position-time')
+                no_service_element = parent_div.find('span', class_='auto-list-stationlist-position auto-list-stationlist-position-none')
+                last_bus_element = parent_div.find('span', class_='auto-list-stationlist-position auto-list-stationlist-position-last')
+
+                if no_service_element and no_service_element.text.strip() == "今日未營運":
+                    print(f"{A} ({direction}) 今天未營運。")
+                    return
+                
+                if no_service_element and no_service_element.text.strip() == "末班已過":
+                    print(f"{A} ({direction}) 該車末班已過。")
+                    return
+                
+                if arrival_time_element:
+                    arrival_time = arrival_time_element.text.strip()== "進站中"
+                    print(f"{A} ({direction}) 進站中。")
+                    calculate_time(route_id, A, direction, B)
+                    return
+                
                 if arrival_time_element:
                     arrival_time = arrival_time_element.text.strip()
                     print(f"{A} ({direction}) 的抵達時間為: {arrival_time}")
+                    calculate_time(route_id, A, direction, B)
                     return
             print(f"未找到 {A} 的抵達時間。")
             return
 
     print(f"未找到站名 {A} ({direction})。")
-            
+
+def calculate_time(route_id, A, direction, B):
+    """
+    根據 route_id 和 direction 讀取 HTML 檔案，將車站名稱 A 後、車站名稱 B 之前的所有車站抵達時間合併成列表輸出
+    """
+    print("1")
+    html_file_path = f"{route_id}_route.html"
+    
+    # 檢查檔案是否存在
+    if not os.path.exists(html_file_path):
+        print(f"HTML 檔案 {html_file_path} 不存在，請確認檔案是否已下載。")
+        return
+
+    # 讀取 HTML 檔案
+    with open(html_file_path, 'r', encoding='utf-8') as file:
+        html_content = file.read()
+
+    # 使用 BeautifulSoup 解析 HTML
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # 根據 direction 選擇對應的路徑
+    if direction == "Go":
+        route_div = soup.find('div', id="GoDirectionRoute")
+    elif direction == "Back":
+        route_div = soup.find('div', id="BackDirectionRoute")
+    else:
+        print(f"無效的方向: {direction}")
+        return
+
+    # 確認路徑是否存在
+    if not route_div:
+        print(f"未找到方向 {direction} 的路徑，請確認 HTML 結構。")
+        return
+
+    # 在路徑下尋找所有車站
+    stop_elements = route_div.find_all('span', class_='auto-list-stationlist-place')
+    stop_times = route_div.find_all('span', class_='auto-list-stationlist-position')
+
+    # 建立車站與抵達時間的對應
+    stop_times_list = [time.text.strip() for time in stop_times]
+
+    # 找出 A 和 B 車站的索引
+    stop_names = [stop.text.strip() for stop in stop_elements]
+    if A in stop_names and B in stop_names:
+        idx_A = stop_names.index(A)
+        idx_B = stop_names.index(B)
+        if idx_A < idx_B:
+            # 取 A 和 B 車站之間及包含 B 車站的進站時間
+            times_between = stop_times_list[idx_A + 1:idx_B + 1]
+            print(f"{A} 到 {B} 之間及包含 {B} 的進站時間: {times_between}")
+
+            # 依序讀取列表資料
+            combined_times = []
+            for i, time in enumerate(times_between):
+                if "進站中" in time:
+                # 確保前一個不是 "進站中"
+                    if i > 0 and "進站中" not in times_between[i - 1]:
+                        combined_times.append(times_between[:i])
+            # 確保最後一個不是 "進站中"
+            if times_between and "進站中" not in times_between[-1]:
+                combined_times.append([times_between[-1]])
+            if combined_times:
+                print(f"進站中時的合併抵達時間: {combined_times}")
+            return combined_times
+        else:
+            print(f"{A} 在 {B} 之後，無法計算進站時間。")
+    else:
+        print(f"未找到 {A} 或 {B} 車站。")
+    
+
+
+
 # 主程式
 A = input("請輸入起點車站名稱：")
 B = input("請輸入終點車站名稱：")
