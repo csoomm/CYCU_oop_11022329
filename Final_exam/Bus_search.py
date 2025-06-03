@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 
 
 # 定義檔案路徑
-file_path = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
+file_path = r"C:\Users\User\Desktop\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
 
 # 讀取 Excel 檔案
 try:
@@ -38,72 +38,99 @@ def search_bus_route(stop1, stop2):
             idx2 = stops.index(stop2)
             if idx1 < idx2:  # 起點在終點左邊
                 print(f"Route ID: {row['RouteID']}, Route Name: {row['RouteName']}, Direction: {row['Direction']}")
-                search_url(row['RouteID'], row['RouteName'], row['Direction'])
+                search_url(row['RouteID'], row['RouteName'], row['Direction'], stop1)
                 found = True
     if not found:
         print("查無同時包含兩站且順序正確的路線。")
 
-def search_url(route_id, route_name, direction):
+def search_url(route_id, route_name, direction, A):
     """
-    根據 Route ID、Route Name、Direction 爬取對應路線的站名
+    根據 Route ID、Route Name、Direction 使用 Playwright 渲染後下載 HTML，並解析對應路線的站名及抵達時間
     """
-    url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={route_id}"
-    response = requests.get(url, verify=False)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        if direction == "Go":
-            route_div = soup.find('div', id='GoDirectionRoute', class_='auto-list-pool-c stationlist-list-pool-c')
-        else:
-            route_div = soup.find('div', id='BackDirectionRoute', class_='auto-list-pool-c stationlist-list-pool-c')
-        if route_div:
-            stops = [station.get_text(strip=True) for station in route_div.find_all('span', class_='auto-list-stationlist-place')]
-            print(f"{route_name} ({direction}) 站名：")
-            
-            get_station_time(route_id, A, direction)
-        else:
-            print(f"找不到 {route_name} ({direction}) 的站名資料。")
-    else:
-        print(f"無法連線到 {url}")
-
-def get_station_time(route_id, station_name, direction="Go"):
-    url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={route_id}"
-
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+        url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={route_id}"
         page.goto(url)
 
-        # 對應方向的 HTML ID
-        direction_id = "GoDirectionRoute" if direction == "Go" else "BackDirectionRoute"
-
         try:
-            # 等待方向區塊載入
-            page.wait_for_selector(f"#{direction_id}", timeout=5000, state="attached")
-            
-            # 有些方向預設是隱藏的，需手動顯示
-            page.eval_on_selector(f"#{direction_id}", "e => e.style.display = 'block'")
-            section = page.query_selector(f"#{direction_id}")
+            # 根據 direction 點擊按鈕
+            if direction == "Go":
+                go_button_selector = ".stationlist-go.stationlist-come-go"
+                page.wait_for_selector(go_button_selector, timeout=10000)  # 等待最多 10 秒
+                page.click(go_button_selector)
+                page.wait_for_timeout(3000)  # 等待按鈕點擊後的渲染完成
+            elif direction == "Back":
+                back_button_selector = ".stationlist-come.stationlist-come-go-gray"
+                page.wait_for_selector(back_button_selector, timeout=10000)  # 等待最多 10 秒
+                page.click(back_button_selector)
+                page.wait_for_timeout(3000)  # 等待按鈕點擊後的渲染完成
 
-            if not section:
-                print(f"❌ 無法找到方向 '{direction}' 的資料區塊。")
-                return
-
-            items = section.query_selector_all(".stationlist-list-pool-c > div")
-
-            for item in items:
-                place = item.query_selector(".auto-list-stationlist-place")
-                time = item.query_selector(".auto-list-stationlist-position.auto-list-stationlist-position-time")
-                
-                if place and place.inner_text().strip() == station_name:
-                    time_text = time.inner_text().strip() if time else "無時間資訊"
-                    print(f"✅ {station_name} 進站時間：{time_text}")
-                    return
-
-            print(f"❌ 找不到站名「{station_name}」。")
-
+            # 下載 HTML 儲存在當前目錄
+            html_content = page.content()
+            html_file_path = f"{route_id}_route.html"
+            with open(html_file_path, 'w', encoding='utf-8') as file:
+                file.write(html_content)
+            print(f"已下載 {route_name} ({direction}) 的 HTML 到 {html_file_path}")
+        except Exception as e:
+            print(f"發生例外狀況: {type(e).__name__}, {e}")
+        #讀取下載的 HTML 檔案，找尋對應站名及抵達時間
         finally:
+            context.close()
             browser.close()
+        arrival_time(route_id, A, direction)
 
+def arrival_time(route_id, A, direction):
+    """
+    根據 route_id 和 direction 讀取 HTML 檔案，尋找站名 A 的抵達時間
+    """
+    html_file_path = f"{route_id}_route.html"
+    
+    # 檢查檔案是否存在
+    if not os.path.exists(html_file_path):
+        print(f"HTML 檔案 {html_file_path} 不存在，請確認檔案是否已下載。")
+        return
+
+    # 讀取 HTML 檔案
+    with open(html_file_path, 'r', encoding='utf-8') as file:
+        html_content = file.read()
+
+    # 使用 BeautifulSoup 解析 HTML
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # 根據 direction 選擇對應的路徑
+    if direction == "Go":
+        route_div = soup.find('div', id="GoDirectionRoute")
+    elif direction == "Back":
+        route_div = soup.find('div', id="BackDirectionRoute")
+    else:
+        print(f"無效的方向: {direction}")
+        return
+
+    # 確認路徑是否存在
+    if not route_div:
+        print(f"未找到方向 {direction} 的路徑，請確認 HTML 結構。")
+        return
+
+    # 在路徑下尋找站名 A
+    stop_elements = route_div.find_all('span', class_='auto-list-stationlist-place')
+    for stop in stop_elements:
+        if stop.text.strip() == A:
+            # 找到站名後，尋找其父元素中的抵達時間
+            parent_div = stop.find_parent('span', class_='auto-list-stationlist')
+            if parent_div:
+                arrival_time_element = parent_div.find('span', class_='auto-list-stationlist-position-time')
+                if arrival_time_element:
+                    arrival_time = arrival_time_element.text.strip()
+                    print(f"{A} ({direction}) 的抵達時間為: {arrival_time}")
+                    return
+            print(f"未找到 {A} 的抵達時間。")
+            return
+
+    print(f"未找到站名 {A} ({direction})。")
+            
+# 主程式
 A = input("請輸入起點車站名稱：")
 B = input("請輸入終點車站名稱：")
 search_bus_route(A, B)
