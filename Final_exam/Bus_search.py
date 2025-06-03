@@ -59,55 +59,50 @@ def search_url(route_id, route_name, direction):
             stops = [station.get_text(strip=True) for station in route_div.find_all('span', class_='auto-list-stationlist-place')]
             print(f"{route_name} ({direction}) 站名：")
             
-            search_time(route_id, A)
+            get_station_time(route_id, A, direction)
         else:
             print(f"找不到 {route_name} ({direction}) 的站名資料。")
     else:
         print(f"無法連線到 {url}")
 
-def search_time(route_id, A):
-    """
-    下載指定 routeID 的 HTML，存檔並用 Playwright 渲染，讀取 A 車站的進站時間
-    """
+def get_station_time(route_id, station_name, direction="Go"):
     url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={route_id}"
-    save_folder = "bus_html"
-    os.makedirs(save_folder, exist_ok=True)
-    save_path = os.path.join(save_folder, f"{route_id}.html")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch()
         page = browser.new_page()
-        page.goto(url, timeout=60000)
-        html_content = page.content()
-        with open(save_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-        print(f"已下載 HTML 至 {save_path}")
+        page.goto(url)
 
-        # 解析A車站的進站時間
-        rows = page.query_selector_all('div.auto-list-stationlist-row')
-        found = False
-        for row in rows:
-            stop_name_elem = row.query_selector('span.auto-list-stationlist-place')
-            if stop_name_elem and stop_name_elem.inner_text().strip() == A:
-                # 找尋 stop_name_elem 之後的進站時間
-                time_elem = row.query_selector('span.auto-list-stationlist-position.auto-list-stationlist-position-time')
-                print(f"{A} 進站時間：")
-                if time_elem:
-                    print(time_elem.inner_text().strip())
-                else:
-                    print("查無進站時間")
-                found = True
-                break
-        if not found:
-            print(f"查無 {A} 站名")
-        browser.close()
-    
+        # 對應方向的 HTML ID
+        direction_id = "GoDirectionRoute" if direction == "Go" else "BackDirectionRoute"
 
-# 範例用法
-# search_time("https://ebus.gov.taipei/Route/StopsOfRoute?routeid=0100002600")
+        try:
+            # 等待方向區塊載入
+            page.wait_for_selector(f"#{direction_id}", timeout=5000, state="attached")
+            
+            # 有些方向預設是隱藏的，需手動顯示
+            page.eval_on_selector(f"#{direction_id}", "e => e.style.display = 'block'")
+            section = page.query_selector(f"#{direction_id}")
 
+            if not section:
+                print(f"❌ 無法找到方向 '{direction}' 的資料區塊。")
+                return
 
+            items = section.query_selector_all(".stationlist-list-pool-c > div")
 
+            for item in items:
+                place = item.query_selector(".auto-list-stationlist-place")
+                time = item.query_selector(".auto-list-stationlist-position.auto-list-stationlist-position-time")
+                
+                if place and place.inner_text().strip() == station_name:
+                    time_text = time.inner_text().strip() if time else "無時間資訊"
+                    print(f"✅ {station_name} 進站時間：{time_text}")
+                    return
+
+            print(f"❌ 找不到站名「{station_name}」。")
+
+        finally:
+            browser.close()
 
 A = input("請輸入起點車站名稱：")
 B = input("請輸入終點車站名稱：")
