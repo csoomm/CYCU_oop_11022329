@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 
 
 # 定義檔案路徑
-file_path = r"C:\Users\User\Desktop\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
+file_path = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
 
 # 讀取 Excel 檔案
 try:
@@ -31,15 +31,18 @@ def search_bus_route(stop1, stop2):
     stop_cols = [col for col in bus_stops_data.columns if col not in exclude_cols]
 
     found = False
+    processed = set()  # 新增集合避免重複
     for idx, row in bus_stops_data.iterrows():
         stops = [str(row[col]) for col in stop_cols if pd.notna(row[col])]
         if stop1 in stops and stop2 in stops:
             idx1 = stops.index(stop1)
             idx2 = stops.index(stop2)
-            if idx1 < idx2:  # 起點在終點左邊
+            key = (row['RouteID'], row['Direction'])
+            if idx1 < idx2 and key not in processed:  # 起點在終點左邊且未處理過
                 print(f"Route ID: {row['RouteID']}, Route Name: {row['RouteName']}, Direction: {row['Direction']}")
                 search_url(row['RouteID'], row['RouteName'], row['Direction'], stop1, stop2)
                 found = True
+                processed.add(key)
     if not found:
         print("查無同時包含兩站且順序正確的路線。")
 
@@ -73,13 +76,13 @@ def search_url(route_id, route_name, direction, A, B):
             with open(html_file_path, 'w', encoding='utf-8') as file:
                 file.write(html_content)
             print(f"已下載 {route_name} ({direction}) 的 HTML 到 {html_file_path}")
+            arrival_time(route_id, A, direction, B)
         except Exception as e:
             print(f"發生例外狀況: {type(e).__name__}, {e}")
         #讀取下載的 HTML 檔案，找尋對應站名及抵達時間
         finally:
             context.close()
             browser.close()
-        arrival_time(route_id, A, direction, B)
 
 def arrival_time(route_id, A, direction, B):
     """
@@ -126,14 +129,15 @@ def arrival_time(route_id, A, direction, B):
 
                 if no_service_element and no_service_element.text.strip() == "今日未營運":
                     print(f"{A} ({direction}) 今天未營運。")
-                    return
+                    break
                 
                 if no_service_element and no_service_element.text.strip() == "末班已過":
                     print(f"{A} ({direction}) 該車末班已過。")
-                    return
+                    break
                 
-                if arrival_time_element:
-                    arrival_time = arrival_time_element.text.strip()== "進站中"
+                # 處理進站中
+                in_station_element = parent_div.find('span', class_='auto-list-stationlist-position auto-list-stationlist-position-now')
+                if in_station_element and in_station_element.text.strip() == "進站中":
                     print(f"{A} ({direction}) 進站中。")
                     calculate_time(route_id, A, direction, B)
                     return
@@ -152,7 +156,6 @@ def calculate_time(route_id, A, direction, B):
     """
     根據 route_id 和 direction 讀取 HTML 檔案，將車站名稱 A 後、車站名稱 B 之前的所有車站抵達時間合併成列表輸出
     """
-    print("1")
     html_file_path = f"{route_id}_route.html"
     
     # 檢查檔案是否存在
@@ -198,18 +201,29 @@ def calculate_time(route_id, A, direction, B):
             times_between = stop_times_list[idx_A + 1:idx_B + 1]
             print(f"{A} 到 {B} 之間及包含 {B} 的進站時間: {times_between}")
 
-            # 依序讀取列表資料
+            # 依序讀取 time_between，遇到 "進站中" 則將前一個資料加入新列表
             combined_times = []
+            prev_time = None  # 新增變數記錄上一個資料
             for i, time in enumerate(times_between):
-                if "進站中" in time:
-                # 確保前一個不是 "進站中"
-                    if i > 0 and "進站中" not in times_between[i - 1]:
-                        combined_times.append(times_between[:i])
-            # 確保最後一個不是 "進站中"
-            if times_between and "進站中" not in times_between[-1]:
-                combined_times.append([times_between[-1]])
-            if combined_times:
-                print(f"進站中時的合併抵達時間: {combined_times}")
+                if time == "進站中":
+                    if i > 0 and times_between[i - 1] != "進站中":
+                        combined_times.append(times_between[i - 1])
+                prev_time = time
+            # 最後一個資料若不是 "進站中"，也加入新列表
+            if times_between and times_between[-1] != "進站中":
+                # 將每個資料的最後兩個文字刪除，並轉為數字
+                cleaned_times = []
+                for t in combined_times + [times_between[-1]]:
+                    # 移除最後兩個字元，並嘗試轉為整數
+                    num_str = t[:-2]
+                    try:
+                        num = int(num_str)
+                        cleaned_times.append(num)
+                    except ValueError:
+                        continue
+                total_time = sum(cleaned_times)
+                print(f"預計抵達時間總和: {total_time} 分鐘")
+                combined_times = cleaned_times
             return combined_times
         else:
             print(f"{A} 在 {B} 之後，無法計算進站時間。")
