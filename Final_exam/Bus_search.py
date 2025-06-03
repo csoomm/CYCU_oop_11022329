@@ -39,6 +39,7 @@ def search_bus_route(stop1, stop2):
             idx2 = stops.index(stop2)
             key = (row['RouteID'], row['Direction'])
             if idx1 < idx2 and key not in processed:  # 起點在終點左邊且未處理過
+                print("---------------------------------")
                 print(f"Route ID: {row['RouteID']}, Route Name: {row['RouteName']}, Direction: {row['Direction']}")
                 search_url(row['RouteID'], row['RouteName'], row['Direction'], stop1, stop2)
                 found = True
@@ -214,6 +215,18 @@ def calculate_time(route_id, A, direction, B):
                 # 將每個資料的最後兩個文字刪除，並轉為數字
                 cleaned_times = []
                 for t in combined_times + [times_between[-1]]:
+                    # 移除最後兩個字元，並嘗試轉為整數
+                    num_str = t[:-2]
+                    try:
+                        num = int(num_str)
+                        cleaned_times.append(num)
+                    except ValueError:
+                        continue
+                total_time = sum(cleaned_times)
+                print(f"預計抵達時間總和: {total_time} 分鐘")
+            else:
+                cleaned_times = []
+                for t in combined_times:
                     # 移除最後兩個字元，並嘗試轉為整數
                     num_str = t[:-2]
                     try:
