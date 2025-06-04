@@ -45,7 +45,7 @@ def search_bus_route(stop1, stop2):
                 processed.add(key)
     if not found:
         change_route(stop1, stop2)
-        print("查無同時包含兩站且順序正確的路線。")
+        
 #--------------------------------------------------------------------------------------------------------------------------------
 def search_url(route_id, route_name, direction, A, B):
     """
