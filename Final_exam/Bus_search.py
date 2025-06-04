@@ -5,8 +5,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import os
 from playwright.sync_api import sync_playwright
-
-
+#---------------------------------------------------------------------------------------------------------------------------------                                             
 # 定義檔案路徑
 file_path = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
 
@@ -21,7 +20,7 @@ except FileNotFoundError:
     print("檔案未找到，請確認檔案路徑是否正確。")
 except Exception as e:
     print(f"讀取檔案時發生錯誤: {e}")
-
+#--------------------------------------------------------------------------------------------------------------------------------
 def search_bus_route(stop1, stop2):
     if bus_stops_data is None:
         print("資料未正確載入，無法搜尋。")
@@ -45,8 +44,9 @@ def search_bus_route(stop1, stop2):
                 found = True
                 processed.add(key)
     if not found:
+        change_route(stop1, stop2)
         print("查無同時包含兩站且順序正確的路線。")
-
+#--------------------------------------------------------------------------------------------------------------------------------
 def search_url(route_id, route_name, direction, A, B):
     """
     根據 Route ID、Route Name、Direction 使用 Playwright 渲染後下載 HTML，並解析對應路線的站名及抵達時間
@@ -84,7 +84,7 @@ def search_url(route_id, route_name, direction, A, B):
         finally:
             context.close()
             browser.close()
-
+#--------------------------------------------------------------------------------------------------------------------------------
 def arrival_time(route_id, A, direction, B):
     """
     根據 route_id 和 direction 讀取 HTML 檔案，尋找站名 A 的抵達時間
@@ -159,7 +159,7 @@ def arrival_time(route_id, A, direction, B):
             return
 
     print(f"未找到站名 {A} ({direction})。")
-
+#--------------------------------------------------------------------------------------------------------------------------------
 def calculate_time(route_id, A, direction, B):
     """
     根據 route_id 和 direction 讀取 HTML 檔案，將車站名稱 A 後、車站名稱 B 之前的所有車站抵達時間合併成列表輸出
@@ -236,7 +236,70 @@ def calculate_time(route_id, A, direction, B):
             print(f"{A} 在 {B} 之後，無法計算進站時間。")
     else:
         print(f"未找到 {A} 或 {B} 車站。")
-    
+#--------------------------------------------------------------------------------------------------------------------------------
+def change_route(stop1, stop2):
+    """
+    搜尋無法直達時，找出擁有 stop1 的路線與擁有 stop2 的路線，並找出兩者的共同車站（轉乘站）。
+    共同車站需滿足：routeA上stop1在stop3前，routeB上stop3在stop2前。
+    輸出格式：route:277(Back)<->280(Back):中轉站「士林,捷運芝山站一,...」
+    """
+    if bus_stops_data is None:
+        print("資料未正確載入，無法搜尋。")
+        return
+
+    exclude_cols = ['Route ID', 'Route Name', 'Direction']
+    stop_cols = [col for col in bus_stops_data.columns if col not in exclude_cols]
+
+    # 找出擁有 stop1 的所有路線
+    routes_with_stop1 = {}
+    for idx, row in bus_stops_data.iterrows():
+        stops = [str(row[col]) for col in stop_cols if pd.notna(row[col])]
+        if stop1 in stops:
+            route_id = row['RouteID']
+            routes_with_stop1[(route_id, row['RouteName'], row['Direction'])] = stops
+
+    # 找出擁有 stop2 的所有路線
+    routes_with_stop2 = {}
+    for idx, row in bus_stops_data.iterrows():
+        stops = [str(row[col]) for col in stop_cols if pd.notna(row[col])]
+        if stop2 in stops:
+            route_id = row['RouteID']
+            routes_with_stop2[(route_id, row['RouteName'], row['Direction'])] = stops
+
+    found = False
+    # key: (routeA_name, routeA_dir, routeB_name, routeB_dir) -> set(中轉站)
+    transfer_dict = {}
+
+    for (routeA_id, routeA_name, routeA_dir), stopsA in routes_with_stop1.items():
+        for (routeB_id, routeB_name, routeB_dir), stopsB in routes_with_stop2.items():
+            common_stops = set(stopsA) & set(stopsB)
+            common_stops.discard(stop1)
+            common_stops.discard(stop2)
+            valid_stops = []
+            for stop3 in common_stops:
+                try:
+                    idx1 = stopsA.index(stop1)
+                    idx3_A = stopsA.index(stop3)
+                    idx3_B = stopsB.index(stop3)
+                    idx2 = stopsB.index(stop2)
+                    if idx1 < idx3_A and idx3_B < idx2:
+                        valid_stops.append(stop3)
+                        found = True
+                except ValueError:
+                    continue
+            if valid_stops:
+                key = (routeA_name, routeA_dir, routeB_name, routeB_dir)
+                if key not in transfer_dict:
+                    transfer_dict[key] = set()
+                transfer_dict[key].update(valid_stops)
+
+    # 合併輸出
+    for (routeA_name, routeA_dir, routeB_name, routeB_dir), stops in transfer_dict.items():
+        if stops:
+            stops_str = "、".join(sorted(stops, key=lambda x: list(routes_with_stop1.values())[0].index(x) if x in list(routes_with_stop1.values())[0] else 0))
+            print(f"route:{routeA_name}({routeA_dir})<->{routeB_name}({routeB_dir}):中轉站「{stops_str}」")
+    if not found:
+        print(f"{stop1} 和 {stop2} 之間沒有符合條件的轉乘站。")
 
 
 
