@@ -130,19 +130,26 @@ def arrival_time(route_id, A, direction, B):
 
                 if no_service_element and no_service_element.text.strip() == "今日未營運":
                     print(f"{A} ({direction}) 今天未營運。")
-                    break
-                
-                if no_service_element and no_service_element.text.strip() == "末班已過":
+                    return
+
+                # 處理末班已過
+                last_bus_over_element = parent_div.find('span', class_='auto-list-stationlist-position auto-list-stationlist-position-none')
+                if last_bus_over_element and last_bus_over_element.text.strip() == "末班已過":
                     print(f"{A} ({direction}) 該車末班已過。")
-                    break
-                
+                    return
+
                 # 處理進站中
                 in_station_element = parent_div.find('span', class_='auto-list-stationlist-position auto-list-stationlist-position-now')
-                if in_station_element and in_station_element.text.strip() == "進站中":
-                    print(f"{A} ({direction}) 進站中。")
-                    calculate_time(route_id, A, direction, B)
-                    return
-                
+                if in_station_element:
+                    text = in_station_element.text.strip()
+                    if text == "進站中":
+                        print(f"{A} ({direction}) 進站中。")
+                        calculate_time(route_id, A, direction, B)
+                        return
+                    elif text.startswith("預計") and "發車" in text:
+                        print(f"{A} ({direction}) {text}")
+                        return
+
                 if arrival_time_element:
                     arrival_time = arrival_time_element.text.strip()
                     print(f"{A} ({direction}) 的抵達時間為: {arrival_time}")
@@ -202,41 +209,28 @@ def calculate_time(route_id, A, direction, B):
             times_between = stop_times_list[idx_A + 1:idx_B + 1]
             print(f"{A} 到 {B} 之間及包含 {B} 的進站時間: {times_between}")
 
-            # 依序讀取 time_between，遇到 "進站中" 則將前一個資料加入新列表
+            # 將time_between中每個資料最後兩個字元去除
+            cleaned_times = [time[:-2] for time in times_between]
+            #將資料改成數字格式，如果是"進"則為0
             combined_times = []
-            prev_time = None  # 新增變數記錄上一個資料
-            for i, time in enumerate(times_between):
-                if time == "進站中":
-                    if i > 0 and times_between[i - 1] != "進站中":
-                        combined_times.append(times_between[i - 1])
-                prev_time = time
-            # 最後一個資料若不是 "進站中"，也加入新列表
-            if times_between and times_between[-1] != "進站中":
-                # 將每個資料的最後兩個文字刪除，並轉為數字
-                cleaned_times = []
-                for t in combined_times + [times_between[-1]]:
-                    # 移除最後兩個字元，並嘗試轉為整數
-                    num_str = t[:-2]
+            for time in cleaned_times:
+                if time == "進":
+                    combined_times.append(0)
+                else:
                     try:
-                        num = int(num_str)
-                        cleaned_times.append(num)
+                        combined_times.append(int(time))
                     except ValueError:
-                        continue
-                total_time = sum(cleaned_times)
-                print(f"預計抵達時間總和: {total_time} 分鐘")
-            else:
-                cleaned_times = []
-                for t in combined_times:
-                    # 移除最後兩個字元，並嘗試轉為整數
-                    num_str = t[:-2]
-                    try:
-                        num = int(num_str)
-                        cleaned_times.append(num)
-                    except ValueError:
-                        continue
-                total_time = sum(cleaned_times)
-                print(f"預計抵達時間總和: {total_time} 分鐘")
-                combined_times = cleaned_times
+                        print(f"無法將時間 '{time}' 轉換為數字格式。")
+                #依序檢查列表combined_times中的數字，若前一筆數字大於後一筆數字，則將前一筆資料放入新列表total_times
+            total_times = []
+            for i in range(len(combined_times) - 1):
+                if combined_times[i] > combined_times[i + 1]:
+                    total_times.append(combined_times[i])
+            # 將最後一筆資料也放入 total_times
+            if combined_times:
+                total_times.append(combined_times[-1])
+            #輸出total_times的總和
+            print(f"預計抵達時間: {sum(total_times)}分鐘")
             return combined_times
         else:
             print(f"{A} 在 {B} 之後，無法計算進站時間。")
