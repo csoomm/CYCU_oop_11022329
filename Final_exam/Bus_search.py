@@ -300,7 +300,33 @@ def change_route(stop1, stop2):
             print(f"route:{routeA_name}({routeA_dir})<->{routeB_name}({routeB_dir}):中轉站「{stops_str}」")
     if not found:
         print(f"{stop1} 和 {stop2} 之間沒有符合條件的轉乘站。")
+#--------------------------------------------------------------------------------------------------------------------------------
+import geopandas as gpd
+import folium
 
+# 讀取 Shapefile 檔案
+data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
+geo_data = gpd.read_file(data_path)
+
+# 只留下指定縣市
+geo_data = geo_data[geo_data['COUNTYNAME'].isin(['臺北市', '新北市', '桃園市', '基隆市'])]
+
+# 計算地圖中心
+center = geo_data.geometry.centroid.unary_union.centroid
+m = folium.Map(location=[center.y, center.x], zoom_start=10)
+
+# 加入 GeoJson 圖層
+folium.GeoJson(
+    geo_data,
+    name="北北基桃行政區",
+    tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
+).add_to(m)
+
+# 儲存並開啟網頁
+m.save('north_tw_map.html')
+
+import webbrowser
+webbrowser.open('north_tw_map.html')
 
 
 # 主程式

@@ -85,4 +85,5 @@ for i in range(num):
 
 print("\n計算完成！")
 
+
 #輸出每個矩陣各為何值，範例
