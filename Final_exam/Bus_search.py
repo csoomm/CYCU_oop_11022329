@@ -530,15 +530,13 @@ def create_map(latlng_list):
 
     # 儲存並開啟網頁
     m.save('north_tw_map.html')
-
+    webbrowser.open('north_tw_map.html')
+#--------------------------------------------------------------------------------------------------------------------------------
 import webbrowser
 import geopandas as gpd
 import folium
-
-
 
 # 主程式
 A = input("請輸入起點車站名稱：")
 B = input("請輸入終點車站名稱：")
 search_bus_route(A, B)
-webbrowser.open('north_tw_map.html')
