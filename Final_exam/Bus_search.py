@@ -162,7 +162,8 @@ def arrival_time(route_id, A, direction, B):
 #--------------------------------------------------------------------------------------------------------------------------------
 def calculate_time(route_id, A, direction, B):
     """
-    根據 route_id 和 direction 讀取 HTML 檔案，將車站名稱 A 後、車站名稱 B 之前的所有車站抵達時間合併成列表輸出
+    根據 route_id 和 direction 讀取 HTML 檔案，將車站名稱 A 後、車站名稱 B 之前的所有車站抵達時間合併成列表輸出，
+    並取得這些車站的經緯度，傳給 create_map()
     """
     html_file_path = f"{route_id}_route.html"
     
@@ -221,7 +222,7 @@ def calculate_time(route_id, A, direction, B):
                         combined_times.append(int(time))
                     except ValueError:
                         print(f"無法將時間 '{time}' 轉換為數字格式。")
-                #依序檢查列表combined_times中的數字，若前一筆數字大於後一筆數字，則將前一筆資料放入新列表total_times
+            #依序檢查列表combined_times中的數字，若前一筆數字大於後一筆數字，則將前一筆資料放入新列表total_times
             total_times = []
             for i in range(len(combined_times) - 1):
                 if combined_times[i] > combined_times[i + 1]:
@@ -231,6 +232,24 @@ def calculate_time(route_id, A, direction, B):
                 total_times.append(combined_times[-1])
             #輸出total_times的總和
             print(f"預計抵達時間: {sum(total_times)}分鐘")
+
+            # 取得A到B之間所有車站的經緯度
+            # 取得對應的車站span元素
+            stops_between = stop_elements[idx_A + 1:idx_B + 1]
+            latlng_list = []
+            for stop in stops_between:
+                parent = stop.find_parent('span', class_='auto-list-stationlist')
+                if parent:
+                    lat_input = parent.find('input', {'name': 'item.Latitude'})
+                    lng_input = parent.find('input', {'name': 'item.Longitude'})
+                    if lat_input and lng_input:
+                        try:
+                            lat = float(lat_input.get('value', ''))
+                            lng = float(lng_input.get('value', ''))
+                            latlng_list.append((lat, lng))
+                        except ValueError:
+                            continue
+            create_map(latlng_list)
             return combined_times
         else:
             print(f"{A} 在 {B} 之後，無法計算進站時間。")
@@ -304,29 +323,50 @@ def change_route(stop1, stop2):
 import geopandas as gpd
 import folium
 
-# 讀取 Shapefile 檔案
-data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
-geo_data = gpd.read_file(data_path)
+def create_map(latlng_list):
+    # 讀取 Shapefile 檔案
+    data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
+    geo_data = gpd.read_file(data_path)
 
-# 只留下指定縣市
-geo_data = geo_data[geo_data['COUNTYNAME'].isin(['臺北市', '新北市', '桃園市', '基隆市'])]
+    # 只留下指定縣市
+    geo_data = geo_data[geo_data['COUNTYNAME'].isin(['臺北市', '新北市', '桃園市', '基隆市'])]
 
-# 計算地圖中心
-center = geo_data.geometry.centroid.unary_union.centroid
-m = folium.Map(location=[center.y, center.x], zoom_start=10)
+    # 計算地圖中心
+    center = geo_data.geometry.centroid.unary_union.centroid
+    m = folium.Map(location=[center.y, center.x], zoom_start=10)
 
-# 加入 GeoJson 圖層
-folium.GeoJson(
-    geo_data,
-    name="北北基桃行政區",
-    tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
-).add_to(m)
+    # 加入 GeoJson 圖層
+    folium.GeoJson(
+        geo_data,
+        name="北北基桃行政區",
+        tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
+    ).add_to(m)
 
-# 儲存並開啟網頁
-m.save('north_tw_map.html')
+    # 加入紅色圓點
+    for lat, lng in latlng_list:
+        folium.CircleMarker(
+            location=[lat, lng],
+            radius=5,
+            color='red',
+            fill=True,
+            fill_color='red',
+            fill_opacity=0.8
+        ).add_to(m)
 
-import webbrowser
-webbrowser.open('north_tw_map.html')
+    # 用紅線連起所有點
+    if len(latlng_list) >= 2:
+        folium.PolyLine(
+            locations=latlng_list,
+            color='red',
+            weight=3,
+            opacity=0.8
+        ).add_to(m)
+
+    # 儲存並開啟網頁
+    m.save('north_tw_map.html')
+
+    import webbrowser
+    webbrowser.open('north_tw_map.html')
 
 
 # 主程式
