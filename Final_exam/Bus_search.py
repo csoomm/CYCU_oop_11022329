@@ -235,7 +235,8 @@ def calculate_time(route_id, A, direction, B):
 
             # 取得A到B之間所有車站的經緯度
             # 取得對應的車站span元素
-            stops_between = stop_elements[idx_A + 1:idx_B + 1]
+            # stops_between 需包含 stopA 與 stopB
+            stops_between = stop_elements[idx_A:idx_B + 1]
             latlng_list = []
             for stop in stops_between:
                 parent = stop.find_parent('span', class_='auto-list-stationlist')
@@ -249,6 +250,7 @@ def calculate_time(route_id, A, direction, B):
                             latlng_list.append((lat, lng))
                         except ValueError:
                             continue
+            print(f"車站 {A} 到 {B}（含）之間的經緯度列表: {latlng_list}")
             create_map(latlng_list)
             return combined_times
         else:
@@ -342,8 +344,12 @@ def create_map(latlng_list):
         tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
     ).add_to(m)
 
+    # 讓使用者輸入起點與終點的圖片路徑
+    start_img =  r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\image.png"
+    end_img = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\圖片1.png"
+
     # 加入紅色圓點
-    for lat, lng in latlng_list:
+    for i, (lat, lng) in enumerate(latlng_list):
         folium.CircleMarker(
             location=[lat, lng],
             radius=5,
@@ -351,6 +357,21 @@ def create_map(latlng_list):
             fill=True,
             fill_color='red',
             fill_opacity=0.8
+        ).add_to(m)
+
+    # 起點加圖片
+    if latlng_list:
+        folium.Marker(
+            location=latlng_list[0],
+            icon=folium.CustomIcon(start_img, icon_size=(40, 40)),
+            tooltip="起點"
+        ).add_to(m)
+    # 終點加圖片
+    if len(latlng_list) > 1:
+        folium.Marker(
+            location=latlng_list[-1],
+            icon=folium.CustomIcon(end_img, icon_size=(40, 40)),
+            tooltip="終點"
         ).add_to(m)
 
     # 用紅線連起所有點
