@@ -5,6 +5,8 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import os
 from playwright.sync_api import sync_playwright
+import re
+import webbrowser
 #---------------------------------------------------------------------------------------------------------------------------------                                             
 # 定義檔案路徑
 file_path = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
@@ -38,7 +40,7 @@ def search_bus_route(stop1, stop2):
             idx2 = stops.index(stop2)
             key = (row['RouteID'], row['Direction'])
             if idx1 < idx2 and key not in processed:  # 起點在終點左邊且未處理過
-                print("---------------------------------")
+                print("------------------------------------------------------------------------------------------------------------------------------------------------------")
                 print(f"Route ID: {row['RouteID']}, Route Name: {row['RouteName']}, Direction: {row['Direction']}")
                 search_url(row['RouteID'], row['RouteName'], row['Direction'], stop1, stop2)
                 found = True
@@ -258,12 +260,6 @@ def calculate_time(route_id, A, direction, B):
         print(f"未找到 {A} 或 {B} 車站。")
 #--------------------------------------------------------------------------------------------------------------------------------
 def change_route(stop1, stop2):
-    """
-    搜尋無法直達時，找出擁有 stop1 的路線與擁有 stop2 的路線，並找出兩者的共同車站（轉乘站）。
-    共同車站需滿足：routeA上stop1在stop3前，routeB上stop3在stop2前。
-    輸出格式：route:277(Back)<->280(Back):中轉站「士林,捷運芝山站一,...」
-    若有找到可轉乘路線，下載兩路線HTML，取得經緯度並繪製地圖。
-    """
     if bus_stops_data is None:
         print("資料未正確載入，無法搜尋。")
         return
@@ -310,25 +306,27 @@ def change_route(stop1, stop2):
             if valid_stops:
                 key = (routeA_id, routeA_name, routeA_dir, routeB_id, routeB_name, routeB_dir)
                 if key not in transfer_dict:
-                    transfer_dict[key] = set()
-                transfer_dict[key].update(valid_stops)
+                    transfer_dict[key] = []
+                transfer_dict[key].extend(valid_stops)
 
     # 合併輸出
     for (routeA_id, routeA_name, routeA_dir, routeB_id, routeB_name, routeB_dir), stops in transfer_dict.items():
         if stops:
-            stops_str = "、".join(sorted(stops, key=lambda x: list(routes_with_stop1.values())[0].index(x) if x in list(routes_with_stop1.values())[0] else 0))
+            # 按照 routeA 的順序排序
+            stopsA = routes_with_stop1[(routeA_id, routeA_name, routeA_dir)]
+            stops_sorted = sorted(set(stops), key=lambda x: stopsA.index(x) if x in stopsA else 0)
+            stops_str = "、".join(stops_sorted)
+            print("------------------------------------------------------------------------------------------------------------------------------------------------------")
             print(f"route:{routeA_name}({routeA_dir})<->{routeB_name}({routeB_dir}):中轉站「{stops_str}」")
 
-            # 下載兩路線HTML
-            # 1. 下載 routeA
-            search_url(routeA_id, routeA_name, routeA_dir, stop1, list(stops)[0])
-            # 2. 下載 routeB
-            search_url(routeB_id, routeB_name, routeB_dir, list(stops)[0], stop2)
+            # 只下載一次兩路線HTML
+            search_transfer_url(routeA_id, routeB_id, routeA_name, routeB_name, routeA_dir, routeB_dir, stop1, stop2, stops_sorted[0])
 
-            # 取得經緯度
-            twin_latlng_list = []
+            # 取得所有轉乘站的經緯度資料並畫圖（所有轉乘站放同一張地圖，皆為綠色圓點）
             # routeA: stop1 ~ stop3
             html_file_A = f"{routeA_id}_route.html"
+            latlng_A = []
+            stopsA_names = []
             if os.path.exists(html_file_A):
                 with open(html_file_A, 'r', encoding='utf-8') as file:
                     html_content = file.read()
@@ -336,12 +334,14 @@ def change_route(stop1, stop2):
                 route_div = soup.find('div', id="GoDirectionRoute") if routeA_dir == "Go" else soup.find('div', id="BackDirectionRoute")
                 if route_div:
                     stop_elements = route_div.find_all('span', class_='auto-list-stationlist-place')
-                    stops_names = [stop.text.strip() for stop in stop_elements]
-                    for stop3 in stops:
-                        if stop1 in stops_names and stop3 in stops_names:
-                            idx1 = stops_names.index(stop1)
-                            idx3 = stops_names.index(stop3)
-                            for i in range(idx1, idx3 + 1):
+                    stopsA_names = [stop.text.strip() for stop in stop_elements]
+                    if stop1 in stopsA_names:
+                        idx1 = stopsA_names.index(stop1)
+                        # 取 stop1 ~ 最後一個轉乘站
+                        idxs3 = [stopsA_names.index(s) for s in stops_sorted if s in stopsA_names]
+                        if idxs3:
+                            idx3_max = max(idxs3)
+                            for i in range(idx1, idx3_max + 1):
                                 parent = stop_elements[i].find_parent('span', class_='auto-list-stationlist')
                                 if parent:
                                     lat_input = parent.find('input', {'name': 'item.Latitude'})
@@ -350,11 +350,13 @@ def change_route(stop1, stop2):
                                         try:
                                             lat = float(lat_input.get('value', ''))
                                             lng = float(lng_input.get('value', ''))
-                                            twin_latlng_list.append((lat, lng))
+                                            latlng_A.append((lat, lng))
                                         except ValueError:
                                             continue
-            # routeB: stop3 ~ stop2
+            # routeB: 第一個轉乘站 ~ stop2
             html_file_B = f"{routeB_id}_route.html"
+            latlng_B = []
+            stopsB_names = []
             if os.path.exists(html_file_B):
                 with open(html_file_B, 'r', encoding='utf-8') as file:
                     html_content = file.read()
@@ -362,12 +364,13 @@ def change_route(stop1, stop2):
                 route_div = soup.find('div', id="GoDirectionRoute") if routeB_dir == "Go" else soup.find('div', id="BackDirectionRoute")
                 if route_div:
                     stop_elements = route_div.find_all('span', class_='auto-list-stationlist-place')
-                    stops_names = [stop.text.strip() for stop in stop_elements]
-                    for stop3 in stops:
-                        if stop3 in stops_names and stop2 in stops_names:
-                            idx3 = stops_names.index(stop3)
-                            idx2 = stops_names.index(stop2)
-                            for i in range(idx3, idx2 + 1):
+                    stopsB_names = [stop.text.strip() for stop in stop_elements]
+                    if stop2 in stopsB_names:
+                        idx2 = stopsB_names.index(stop2)
+                        idxs3 = [stopsB_names.index(s) for s in stops_sorted if s in stopsB_names]
+                        if idxs3:
+                            idx3_min = min(idxs3)
+                            for i in range(idx3_min, idx2 + 1):
                                 parent = stop_elements[i].find_parent('span', class_='auto-list-stationlist')
                                 if parent:
                                     lat_input = parent.find('input', {'name': 'item.Latitude'})
@@ -376,18 +379,193 @@ def change_route(stop1, stop2):
                                         try:
                                             lat = float(lat_input.get('value', ''))
                                             lng = float(lng_input.get('value', ''))
-                                            twin_latlng_list.append((lat, lng))
+                                            latlng_B.append((lat, lng))
                                         except ValueError:
                                             continue
-            if twin_latlng_list:
-                twin_create_map(twin_latlng_list)
+            # 取得所有轉乘站的經緯度
+            transfer_points = []
+            for stop3 in stops_sorted:
+                # 先找 routeA
+                if stop3 in stopsA_names:
+                    idx = stopsA_names.index(stop3)
+                    html_file = html_file_A
+                    stop_elements = None
+                    with open(html_file, 'r', encoding='utf-8') as file:
+                        html_content = file.read()
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    route_div = soup.find('div', id="GoDirectionRoute") if routeA_dir == "Go" else soup.find('div', id="BackDirectionRoute")
+                    if route_div:
+                        stop_elements = route_div.find_all('span', class_='auto-list-stationlist-place')
+                        parent = stop_elements[idx].find_parent('span', class_='auto-list-stationlist')
+                        if parent:
+                            lat_input = parent.find('input', {'name': 'item.Latitude'})
+                            lng_input = parent.find('input', {'name': 'item.Longitude'})
+                            if lat_input and lng_input:
+                                try:
+                                    lat = float(lat_input.get('value', ''))
+                                    lng = float(lng_input.get('value', ''))
+                                    transfer_points.append((lat, lng))
+                                except ValueError:
+                                    continue
+                # 若 routeA 沒有，找 routeB
+                elif stop3 in stopsB_names:
+                    idx = stopsB_names.index(stop3)
+                    html_file = html_file_B
+                    stop_elements = None
+                    with open(html_file, 'r', encoding='utf-8') as file:
+                        html_content = file.read()
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    route_div = soup.find('div', id="GoDirectionRoute") if routeB_dir == "Go" else soup.find('div', id="BackDirectionRoute")
+                    if route_div:
+                        stop_elements = route_div.find_all('span', class_='auto-list-stationlist-place')
+                        parent = stop_elements[idx].find_parent('span', class_='auto-list-stationlist')
+                        if parent:
+                            lat_input = parent.find('input', {'name': 'item.Latitude'})
+                            lng_input = parent.find('input', {'name': 'item.Longitude'})
+                            if lat_input and lng_input:
+                                try:
+                                    lat = float(lat_input.get('value', ''))
+                                    lng = float(lng_input.get('value', ''))
+                                    transfer_points.append((lat, lng))
+                                except ValueError:
+                                    continue
+            # 畫圖
+            if latlng_A and latlng_B and transfer_points:
+                # 儲存 HTML 檔案到當前資料夾
+                raw_filename = f"north_tw_transfer_{stop1}_route{routeA_name}({routeA_dir})<->{routeB_name}({routeB_dir})_{stop2}.html"
+                safe_filename = re.sub(r'[<>:"/\\|?*]', '_', raw_filename)
+                map_filename = os.path.join(os.getcwd(), safe_filename)
+                create_transfer_map_multi(
+                    latlng_A, latlng_B, transfer_points, stop1, stop2, stops_sorted,
+                    map_filename
+                )
     if not found:
         print(f"{stop1} 和 {stop2} 之間沒有符合條件的轉乘站。")
 #--------------------------------------------------------------------------------------------------------------------------------
-def twin_create_map(latlng_list):
+# 只下載一次兩路線HTML
+def search_transfer_url(routeA_id, routeB_id, routeA_name, routeB_name, routeA_dir, routeB_dir, stop1, stop2, stop3):
+    def download_html(route_id, route_name, direction):
+        html_file_path = f"{route_id}_route.html"
+        if os.path.exists(html_file_path):
+            # 已存在就不再下載
+            return
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context()
+            page = context.new_page()
+            url = f"https://ebus.gov.taipei/Route/StopsOfRoute?routeid={route_id}"
+            page.goto(url)
+            try:
+                if direction == "Go":
+                    go_button_selector = ".stationlist-go.stationlist-come-go"
+                    page.wait_for_selector(go_button_selector, timeout=10000)
+                    page.click(go_button_selector)
+                    page.wait_for_timeout(3000)
+                elif direction == "Back":
+                    back_button_selector = ".stationlist-come.stationlist-come-go-gray"
+                    page.wait_for_selector(back_button_selector, timeout=10000)
+                    page.click(back_button_selector)
+                    page.wait_for_timeout(3000)
+                html_content = page.content()
+                with open(html_file_path, 'w', encoding='utf-8') as file:
+                    file.write(html_content)
+                print(f"已下載 {route_name} ({direction}) 的 HTML 到 {html_file_path}")
+            except Exception as e:
+                print(f"發生例外狀況: {type(e).__name__}, {e}")
+            finally:
+                context.close()
+                browser.close()
+    # 下載 routeA
+    download_html(routeA_id, routeA_name, routeA_dir)
+    # 下載 routeB
+    download_html(routeB_id, routeB_name, routeB_dir)
+#--------------------------------------------------------------------------------------------------------------------------------
+# 新增：多轉乘站同圖，所有轉乘站皆為綠色圓點
+def create_transfer_map_multi(latlng_A, latlng_B, transfer_points, stopA, stopB, stops3_list, map_filename):
+    data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
+    geo_data = gpd.read_file(data_path)
+    geo_data = geo_data[geo_data['COUNTYNAME'].isin(['臺北市', '新北市', '桃園市', '基隆市'])]
+    center = geo_data.geometry.centroid.unary_union.centroid
+    m = folium.Map(location=[center.y, center.x], zoom_start=10)
+    folium.GeoJson(
+        geo_data,
+        name="北北基桃行政區",
+        tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
+    ).add_to(m)
+    start_img =  r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\image.png"
+    end_img = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\圖片1.png"
+
+    # 畫紅線（stopA到第一個轉乘站，不含轉乘站）
+    if len(latlng_A) > 1:
+        folium.PolyLine(
+            locations=latlng_A[:-1] + [transfer_points[0]],
+            color='red',
+            weight=3,
+            opacity=0.8,
+            tooltip=f"{stopA}到{stops3_list[0]}"
+        ).add_to(m)
+    # 畫藍線（最後一個轉乘站到stopB，不含轉乘站）
+    if len(latlng_B) > 1:
+        folium.PolyLine(
+            locations=[transfer_points[-1]] + latlng_B[1:],
+            color='blue',
+            weight=3,
+            opacity=0.8,
+            tooltip=f"{stops3_list[-1]}到{stopB}"
+        ).add_to(m)
+    # 畫紅色圓點（stopA到第一個轉乘站，不含轉乘站）
+    for latlng in latlng_A[:-1]:
+        folium.CircleMarker(
+            location=latlng,
+            radius=5,
+            color='red',
+            fill=True,
+            fill_color='red',
+            fill_opacity=0.8
+        ).add_to(m)
+    # 畫藍色圓點（最後一個轉乘站到stopB，不含轉乘站）
+    for latlng in latlng_B[1:]:
+        folium.CircleMarker(
+            location=latlng,
+            radius=5,
+            color='blue',
+            fill=True,
+            fill_color='blue',
+            fill_opacity=0.8
+        ).add_to(m)
+    # 畫綠色圓點（所有轉乘站）
+    for idx, latlng in enumerate(transfer_points):
+        folium.CircleMarker(
+            location=latlng,
+            radius=8,
+            color='green',
+            fill=True,
+            fill_color='green',
+            fill_opacity=1,
+            tooltip=f"中轉站：{stops3_list[idx]}"
+        ).add_to(m)
+    # 起點圖片
+    if latlng_A:
+        folium.Marker(
+            location=latlng_A[0],
+            icon=folium.CustomIcon(start_img, icon_size=(40, 40)),
+            tooltip="起點"
+        ).add_to(m)
+    # 終點圖片
+    if latlng_B:
+        folium.Marker(
+            location=latlng_B[-1],
+            icon=folium.CustomIcon(end_img, icon_size=(40, 40)),
+            tooltip="終點"
+        ).add_to(m)
+    # 儲存並開啟
+    m.save(map_filename)
+    webbrowser.open(map_filename)
+
+#--------------------------------------------------------------------------------------------------------------------------------
+def create_transfer_map(latlng_A, latlng_B, transfer_point, stopA, stopB, stop3):
     """
-    將兩段路線（轉乘）用不同顏色繪製在地圖上
-    latlng_list: 兩段路線的經緯度串接成一個list，中間轉乘點重複
+    畫出一個地圖，stopA到中轉站之間的站紅色，中轉站綠色，中轉站到stopB之間的站藍色
     """
 
     data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
@@ -403,69 +581,72 @@ def twin_create_map(latlng_list):
     start_img =  r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\image.png"
     end_img = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\圖片1.png"
 
-    # 尋找轉乘點（假設轉乘點在latlng_list中至少重複一次）
-    transfer_idx = None
-    for i in range(1, len(latlng_list)):
-        if latlng_list[i] == latlng_list[i-1]:
-            transfer_idx = i
-            break
-    # 若找不到重複點，則以中間點作為分割
-    if transfer_idx is None:
-        transfer_idx = len(latlng_list) // 2
-
-    # 第一段路線（紅色）
-    if transfer_idx > 1:
+    # 畫紅線（stopA到中轉站，不含中轉站）
+    if len(latlng_A) > 1:
         folium.PolyLine(
-            locations=latlng_list[:transfer_idx],
+            locations=latlng_A[:-1] + [transfer_point],
             color='red',
             weight=3,
             opacity=0.8,
-            tooltip="第一段路線"
+            tooltip=f"{stopA}到{stop3}"
         ).add_to(m)
-    # 第二段路線（藍色）
-    if transfer_idx < len(latlng_list) - 1:
+    # 畫藍線（中轉站到stopB，不含中轉站）
+    if len(latlng_B) > 1:
         folium.PolyLine(
-            locations=latlng_list[transfer_idx-1:],
+            locations=[transfer_point] + latlng_B[1:],
             color='blue',
             weight=3,
             opacity=0.8,
-            tooltip="第二段路線"
+            tooltip=f"{stop3}到{stopB}"
         ).add_to(m)
-
-    # 加入圓點
-    for i, (lat, lng) in enumerate(latlng_list):
+    # 畫紅色圓點（stopA到中轉站，不含中轉站）
+    for latlng in latlng_A[:-1]:
         folium.CircleMarker(
-            location=[lat, lng],
+            location=latlng,
             radius=5,
-            color='green' if i == transfer_idx-1 else ('red' if i < transfer_idx else 'blue'),
+            color='red',
             fill=True,
-            fill_color='green' if i == transfer_idx-1 else ('red' if i < transfer_idx else 'blue'),
+            fill_color='red',
             fill_opacity=0.8
         ).add_to(m)
-    # 起點
-    if latlng_list:
+    # 畫藍色圓點（中轉站到stopB，不含中轉站）
+    for latlng in latlng_B[1:]:
+        folium.CircleMarker(
+            location=latlng,
+            radius=5,
+            color='blue',
+            fill=True,
+            fill_color='blue',
+            fill_opacity=0.8
+        ).add_to(m)
+    # 畫綠色圓點（中轉站）
+    folium.CircleMarker(
+        location=transfer_point,
+        radius=8,
+        color='green',
+        fill=True,
+        fill_color='green',
+        fill_opacity=1,
+        tooltip=f"中轉站：{stop3}"
+    ).add_to(m)
+    # 起點圖片
+    if latlng_A:
         folium.Marker(
-            location=latlng_list[0],
+            location=latlng_A[0],
             icon=folium.CustomIcon(start_img, icon_size=(40, 40)),
             tooltip="起點"
         ).add_to(m)
-    # 終點
-    if len(latlng_list) > 1:
+    # 終點圖片
+    if latlng_B:
         folium.Marker(
-            location=latlng_list[-1],
+            location=latlng_B[-1],
             icon=folium.CustomIcon(end_img, icon_size=(40, 40)),
             tooltip="終點"
         ).add_to(m)
-    # 轉乘點
-    if 0 < transfer_idx < len(latlng_list):
-        folium.Marker(
-            location=latlng_list[transfer_idx-1],
-            icon=folium.Icon(color='green', icon='exchange', prefix='fa'),
-            tooltip="轉乘點"
-        ).add_to(m)
-
-    m.save('north_tw_twin_map.html')
-    webbrowser.open('north_tw_twin_map.html')
+    # 儲存並開啟
+    map_filename = f"north_tw_transfer_{stopA}_{stop3}_{stopB}.html"
+    m.save(map_filename)
+    webbrowser.open(map_filename)
 #--------------------------------------------------------------------------------------------------------------------------------
 import geopandas as gpd
 import folium
@@ -535,6 +716,7 @@ def create_map(latlng_list):
 import webbrowser
 import geopandas as gpd
 import folium
+from playwright.sync_api import sync_playwright
 
 # 主程式
 A = input("請輸入起點車站名稱：")
