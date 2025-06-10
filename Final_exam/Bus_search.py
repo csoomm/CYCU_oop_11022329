@@ -9,7 +9,7 @@ import re
 import webbrowser
 #---------------------------------------------------------------------------------------------------------------------------------                                             
 # 定義檔案路徑
-file_path = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
+file_path = r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\taipei_bus_stops.xlsx"
 
 # 讀取 Excel 檔案
 try:
@@ -482,7 +482,7 @@ def search_transfer_url(routeA_id, routeB_id, routeA_name, routeB_name, routeA_d
 #--------------------------------------------------------------------------------------------------------------------------------
 # 新增：多轉乘站同圖，所有轉乘站皆為綠色圓點
 def create_transfer_map_multi(latlng_A, latlng_B, transfer_points, stopA, stopB, stops3_list, map_filename):
-    data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
+    data_path = r'C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
     geo_data = gpd.read_file(data_path)
     geo_data = geo_data[geo_data['COUNTYNAME'].isin(['臺北市', '新北市', '桃園市', '基隆市'])]
     center = geo_data.geometry.centroid.unary_union.centroid
@@ -492,8 +492,8 @@ def create_transfer_map_multi(latlng_A, latlng_B, transfer_points, stopA, stopB,
         name="北北基桃行政區",
         tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
     ).add_to(m)
-    start_img =  r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\image.png"
-    end_img = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\圖片1.png"
+    start_img =  r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\image.png"
+    end_img = r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\圖片1.png"
 
     # 畫紅線（stopA到第一個轉乘站，不含轉乘站）
     if len(latlng_A) > 1:
@@ -568,7 +568,7 @@ def create_transfer_map(latlng_A, latlng_B, transfer_point, stopA, stopB, stop3)
     畫出一個地圖，stopA到中轉站之間的站紅色，中轉站綠色，中轉站到stopB之間的站藍色
     """
 
-    data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
+    data_path = r'C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
     geo_data = gpd.read_file(data_path)
     geo_data = geo_data[geo_data['COUNTYNAME'].isin(['臺北市', '新北市', '桃園市', '基隆市'])]
     center = geo_data.geometry.centroid.unary_union.centroid
@@ -578,8 +578,8 @@ def create_transfer_map(latlng_A, latlng_B, transfer_point, stopA, stopB, stop3)
         name="北北基桃行政區",
         tooltip=folium.GeoJsonTooltip(fields=["COUNTYNAME", "TOWNNAME"], aliases=["縣市", "鄉鎮"])
     ).add_to(m)
-    start_img =  r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\image.png"
-    end_img = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\圖片1.png"
+    start_img =  r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\image.png"
+    end_img = r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\圖片1.png"
 
     # 畫紅線（stopA到中轉站，不含中轉站）
     if len(latlng_A) > 1:
@@ -653,7 +653,7 @@ import folium
 
 def create_map(latlng_list):
     # 讀取 Shapefile 檔案
-    data_path = r'C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
+    data_path = r'C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2\TOWN_MOI_1140318.shp'
     geo_data = gpd.read_file(data_path)
 
     # 只留下指定縣市
@@ -671,8 +671,8 @@ def create_map(latlng_list):
     ).add_to(m)
 
     # 讓使用者輸入起點與終點的圖片路徑
-    start_img =  r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\image.png"
-    end_img = r"C:\Users\31002\OneDrive\桌面\CYCU_oop_11022329\Final_exam\圖片1.png"
+    start_img =  r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\image.png"
+    end_img = r"C:\Users\User\Documents\GitHub\CYCU_oop_11022329\Final_exam\圖片1.png"
 
     # 加入紅色圓點
     for i, (lat, lng) in enumerate(latlng_list):
